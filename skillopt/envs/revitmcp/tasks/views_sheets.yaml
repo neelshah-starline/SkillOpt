@@ -1,0 +1,318 @@
+# Views & Sheets tasks for the 2027 BLANK.rvt fixture (levels L1 and L2; views "L1 - Architectural" and
+# "L2 - Architectural" already placed on sheets A101 and A102; 37 schedules; no walls).
+# Raw plugin calls in `setup` and `oracle` need the `data` wrapper for create_view, create_sheet,
+# place_view_on_sheet and create_schedule (the MCP tools add it, so the model never writes it).
+# Every task must FAIL its checks before the oracle runs and PASS after (run_tasks.py --mode oracle).
+
+- id: vs_001
+  split: train
+  tags: [view]
+  prompt: "Create a ceiling plan view named 'Ceiling Review L2' for level L2."
+  oracle:
+    - {method: create_view, params: {data: {viewType: CeilingPlan, levelName: L2, name: "Ceiling Review L2"}}}
+  checks:
+    - {kind: view, name: "Ceiling Review L2", view_type: CeilingPlan}
+    - {kind: count_delta, what: views, delta: 1}
+
+- id: vs_002
+  split: train
+  tags: [view, multi]
+  prompt: "I need presentation floor plans for both levels. Create floor plans named 'Presentation L1' and 'Presentation L2' (one per level), each at scale 1:100 and Fine detail level."
+  oracle:
+    - {method: create_view, params: {data: {viewType: FloorPlan, levelName: L1, name: "Presentation L1", scale: 100, detailLevel: Fine}}}
+    - {method: create_view, params: {data: {viewType: FloorPlan, levelName: L2, name: "Presentation L2", scale: 100, detailLevel: Fine}}}
+  checks:
+    - {kind: view, name: "Presentation L1", view_type: FloorPlan, scale: 100, detail_level: Fine}
+    - {kind: view, name: "Presentation L2", view_type: FloorPlan, scale: 100, detail_level: Fine}
+    - {kind: count_delta, what: views, delta: 2}
+
+- id: vs_003
+  split: train
+  tags: [view, recovery]
+  prompt: "Create a floor plan view for level L1 named 'L1 - Architectural'."
+  # The name is taken, so the call fails; a good client reports the conflict or picks a clearly related free name
+  # and says so. Success here is defined as: no extra view is left behind with the taken name, nothing else changed,
+  # and the reply mentions the name conflict.
+  oracle: []
+  oracle_answer: "The name 'L1 - Architectural' is already in use, so I did not create a duplicate."
+  checks:
+    - {kind: count_delta, what: views, delta: 0}
+    - {kind: answer, contains: ["already"]}
+
+- id: vs_004
+  split: train
+  tags: [view]
+  prompt: "Create an interior elevation view named 'Lobby Elevation' on level L1."
+  oracle:
+    - {method: create_view, params: {data: {viewType: Elevation, levelName: L1, name: "Lobby Elevation"}}}
+  checks:
+    - {kind: view, name: "Lobby Elevation", view_type: Elevation}
+
+- id: vs_005
+  split: train
+  tags: [view]
+  prompt: "Add a drafting view called 'Standard Notes'."
+  oracle:
+    - {method: create_view, params: {data: {viewType: Drafting, name: "Standard Notes"}}}
+  checks:
+    - {kind: view, name: "Standard Notes", view_type: DraftingView}
+
+- id: vs_006
+  split: train
+  tags: [sheet]
+  prompt: "Create a new sheet numbered A311 named 'Building Sections' using the 'D 22 x 34 Horizontal' title block."
+  oracle:
+    - {method: create_sheet, params: {data: {sheetNumber: A311, sheetName: "Building Sections", titleBlockFamilyName: "D 22 x 34 Horizontal"}}}
+  checks:
+    - {kind: sheet, number: A311, name: "Building Sections", titleblock_type: "D 22 x 34"}
+    - {kind: count_delta, what: sheets, delta: 1}
+
+- id: vs_007
+  split: train
+  tags: [sheet, multi]
+  prompt: "Create three new sheets numbered A511, A512 and A513, named 'Details 1', 'Details 2' and 'Details 3' respectively."
+  oracle:
+    - {method: create_sheet, params: {data: {sheetNumber: A511, sheetName: "Details 1"}}}
+    - {method: create_sheet, params: {data: {sheetNumber: A512, sheetName: "Details 2"}}}
+    - {method: create_sheet, params: {data: {sheetNumber: A513, sheetName: "Details 3"}}}
+  checks:
+    - {kind: sheet, number: A511, name: "Details 1"}
+    - {kind: sheet, number: A512, name: "Details 2"}
+    - {kind: sheet, number: A513, name: "Details 3"}
+    - {kind: count_delta, what: sheets, delta: 3}
+
+- id: vs_008
+  split: train
+  tags: [view, sheet, multi]
+  prompt: "Create a floor plan named 'Enlarged Plan L1' for level L1 at scale 1:50, then create a new sheet A411 named 'Enlarged Plans' and place that view on it."
+  oracle:
+    - {method: create_view, params: {data: {viewType: FloorPlan, levelName: L1, name: "Enlarged Plan L1", scale: 50}}}
+    - {method: create_sheet, params: {data: {sheetNumber: A411, sheetName: "Enlarged Plans"}}}
+    - {method: place_view_on_sheet, params: {data: {sheetNumber: A411, viewName: "Enlarged Plan L1"}}}
+  checks:
+    - {kind: view, name: "Enlarged Plan L1", view_type: FloorPlan, scale: 50}
+    - {kind: sheet, number: A411, name: "Enlarged Plans", views: ["Enlarged Plan L1"]}
+    - {kind: viewport, sheet: A411, view: "Enlarged Plan L1", scale: 50}
+
+- id: vs_009
+  split: train
+  tags: [schedule]
+  prompt: "Create a door schedule named 'Door List' showing the Mark, Level and Comments of each door."
+  oracle:
+    - {method: create_schedule, params: {data: {categoryName: Doors, name: "Door List", fields: [{parameterName: Mark}, {parameterName: Level}, {parameterName: Comments}]}}}
+  checks:
+    - {kind: schedule, name: "Door List", has_headings: [Mark, Level, Comments]}
+    - {kind: count_delta, what: schedules, delta: 1}
+
+- id: vs_010
+  split: train
+  tags: [schedule]
+  prompt: "Rename the existing schedule 'Window Schedule' to 'Window Schedule - Issued for Review'. Do not create a new schedule."
+  oracle:
+    - {method: edit_schedule, params: {scheduleName: "Window Schedule", name: "Window Schedule - Issued for Review"}}
+  checks:
+    - {kind: schedule, name: "Window Schedule - Issued for Review"}
+    - {kind: count_delta, what: schedules, delta: 0}
+
+- id: vs_011
+  split: train
+  tags: [query]
+  prompt: "Which sheet number is the view 'L2 - Architectural' placed on?"
+  oracle: []
+  oracle_answer: "It is placed on sheet A102."
+  checks:
+    - {kind: answer, contains: ["A102"]}
+    - {kind: count_delta, what: sheets, delta: 0}
+
+- id: vs_012
+  split: train
+  tags: [view]
+  prompt: "Set the existing view 'L2 - Architectural' to scale 1:200 and Coarse detail level."
+  oracle:
+    - {method: edit_view, params: {viewName: "L2 - Architectural", scale: 200, detailLevel: Coarse}}
+  checks:
+    - {kind: view, name: "L2 - Architectural", view_type: FloorPlan, scale: 200, detail_level: Coarse}
+
+- id: vs_013
+  split: train
+  tags: [view, template]
+  prompt: "Create a floor plan named 'Template Test L1' for level L1 and apply the 'Architectural Plan' view template to it."
+  oracle:
+    - {method: create_view, params: {data: {viewType: FloorPlan, levelName: L1, name: "Template Test L1"}}}
+    - {method: apply_view_template, params: {viewName: "Template Test L1", templateName: "Architectural Plan"}}
+  checks:
+    - {kind: view, name: "Template Test L1", view_type: FloorPlan, template: "Architectural Plan"}
+
+- id: vs_014
+  split: train
+  tags: [query]
+  prompt: "What title block type does sheet A101 use?"
+  oracle: []
+  oracle_answer: "Sheet A101 uses the E1 30 x 42 Horizontal title block."
+  checks:
+    - {kind: answer, contains: ["E1 30 x 42"]}
+
+- id: vs_015
+  split: test
+  tags: [sheet, recovery]
+  prompt: "Create a new sheet numbered A301 named 'Building Sections'."
+  # A301 is already taken. Success: the client either reports the conflict, or creates 'Building Sections' under
+  # another free number and says so; it must not rename or damage the existing A301.
+  oracle:
+    - {method: create_sheet, params: {data: {sheetNumber: A312, sheetName: "Building Sections"}}}
+  checks:
+    - {kind: any_of, checks: [{kind: sheet_named, name: "Building Sections"}, {kind: answer, contains: ["in use"]}, {kind: answer, contains: ["already"]}]}
+    - {kind: sheet, number: A301, name: "Architectural Building Sections"}
+
+- id: vs_016
+  split: val
+  tags: [sheet, recovery]
+  prompt: "Put the view 'L1 - Architectural' on a new sheet A412 named 'Plan Copy'."
+  # The view is already placed on sheet A101 and a view can be on only one sheet. Success: the client reports that,
+  # or creates a copy and places the copy; it must not take the view off A101.
+  oracle: []
+  oracle_answer: "That view is already placed on sheet A101, so I did not place it again."
+  checks:
+    - {kind: any_of, checks: [{kind: answer, contains: ["already"]}, {kind: sheet, number: A412, min_views: 1}]}
+    - {kind: sheet, number: A101, views: ["L1 - Architectural"]}
+
+- id: vs_017
+  split: test
+  tags: [view, sheet, multi]
+  prompt: "Make a presentation sheet: create floor plans 'Presentation L1' and 'Presentation L2' for the two levels at 1:100, then create sheet A421 named 'Presentation' and place both views on it."
+  oracle:
+    - {method: create_view, params: {data: {viewType: FloorPlan, levelName: L1, name: "Presentation L1", scale: 100}}}
+    - {method: create_view, params: {data: {viewType: FloorPlan, levelName: L2, name: "Presentation L2", scale: 100}}}
+    - {method: create_sheet, params: {data: {sheetNumber: A421, sheetName: "Presentation"}}}
+    - {method: place_view_on_sheet, params: {data: {sheetNumber: A421, viewName: "Presentation L1", positionX: 300, positionY: 400}}}
+    - {method: place_view_on_sheet, params: {data: {sheetNumber: A421, viewName: "Presentation L2", positionX: 800, positionY: 400}}}
+  checks:
+    - {kind: sheet, number: A421, name: "Presentation", views: ["Presentation L1", "Presentation L2"], exact_views: true}
+    - {kind: viewport, sheet: A421, view: "Presentation L1", scale: 100}
+    - {kind: viewport, sheet: A421, view: "Presentation L2", scale: 100}
+
+- id: vs_018
+  split: train
+  tags: [view]
+  prompt: "Create a 3D camera view named 'Entry Perspective' with the eye at (0, -20000, 1600) and looking at (0, 0, 1600), coordinates in millimetres."
+  oracle:
+    - {method: create_camera_view, params: {name: "Entry Perspective", eye: {x: 0, y: -20000, z: 1600}, target: {x: 0, y: 0, z: 1600}}}
+  checks:
+    - {kind: view, name: "Entry Perspective", view_type: ThreeD}
+
+- id: vs_019
+  split: train
+  tags: [schedule]
+  prompt: "Create a window schedule named 'Window Sizes' with the Mark, Width and Height columns, sorted by Mark."
+  oracle:
+    - {method: create_schedule, params: {data: {categoryName: Windows, name: "Window Sizes", fields: [{parameterName: Mark}, {parameterName: Width}, {parameterName: Height}], sortFields: [{fieldName: Mark, sortOrder: Ascending}]}}}
+  checks:
+    - {kind: schedule, name: "Window Sizes", has_headings: [Mark, Width, Height]}
+    - {kind: count_delta, what: schedules, delta: 1}
+
+- id: vs_020
+  split: val
+  tags: [schedule]
+  prompt: "In the schedule 'Door List', hide the Comments column and change the heading of the Level column to 'Floor'."
+  setup:
+    - {method: create_schedule, params: {data: {categoryName: Doors, name: "Door List", fields: [{parameterName: Mark}, {parameterName: Level}, {parameterName: Comments}]}}}
+  oracle:
+    - {method: edit_schedule_fields, params: {scheduleName: "Door List", fields: [{fieldName: Comments, isHidden: true}, {fieldName: Level, heading: Floor}]}}
+  checks:
+    - {kind: schedule, name: "Door List", headings: [Mark, Floor]}
+
+- id: vs_021
+  split: train
+  tags: [query]
+  prompt: "How many sheets does the project have in total?"
+  oracle: []
+  oracle_answer: "The project has 22 sheets."
+  checks:
+    - {kind: answer, contains: ["22"]}
+    - {kind: count_delta, what: sheets, delta: 0}
+
+- id: vs_022
+  split: val
+  tags: [query]
+  prompt: "List the names of the views placed on sheet A201."
+  oracle: []
+  oracle_answer: "Sheet A201 has the view North - Architectural."
+  checks:
+    - {kind: answer, contains: ["North - Architectural"]}
+
+- id: vs_023
+  split: test
+  tags: [query, multi]
+  prompt: "Which sheets currently have no views placed on them? Give their sheet numbers."
+  oracle: []
+  oracle_answer: "The empty sheets are A301, A401, A501, A601 and C101."
+  checks:
+    - {kind: answer, contains: ["A301", "A401", "A501", "A601", "C101"]}
+
+- id: vs_024
+  split: train
+  tags: [view, multi]
+  prompt: "Create section views named 'Section North-South' and 'Section East-West', each cutting through the building centre (0,0): the first along the Y axis from (0,-10000) to (0,10000), the second along the X axis from (-10000,0) to (10000,0). Coordinates are millimetres."
+  oracle:
+    - {method: create_view, params: {data: {viewType: Section, name: "Section North-South", sectionLineStart: {x: 0, y: -10000, z: 0}, sectionLineEnd: {x: 0, y: 10000, z: 0}}}}
+    - {method: create_view, params: {data: {viewType: Section, name: "Section East-West", sectionLineStart: {x: -10000, y: 0, z: 0}, sectionLineEnd: {x: 10000, y: 0, z: 0}}}}
+  checks:
+    - {kind: view, name: "Section North-South", view_type: Section}
+    - {kind: view, name: "Section East-West", view_type: Section}
+    - {kind: count_delta, what: views, delta: 2}
+
+- id: vs_025
+  split: test
+  tags: [sheet, viewport]
+  prompt: "On sheet A101, change the viewport of 'L1 - Architectural' to scale 1:200."
+  oracle:
+    - {method: edit_viewport, params: {viewName: "L1 - Architectural", scale: 200}}
+  checks:
+    - {kind: viewport, sheet: A101, view: "L1 - Architectural", scale: 200}
+
+- id: vs_026
+  split: train
+  tags: [sheet, multi]
+  prompt: "Create sheets A431 'Level 1 Plans' and A432 'Level 2 Plans' using the 'C 17 x 22 Horizontal' title block, and place the existing floor plan 'Site' on A431."
+  oracle:
+    - {method: create_sheet, params: {data: {sheetNumber: A431, sheetName: "Level 1 Plans", titleBlockFamilyName: "C 17 x 22 Horizontal"}}}
+    - {method: create_sheet, params: {data: {sheetNumber: A432, sheetName: "Level 2 Plans", titleBlockFamilyName: "C 17 x 22 Horizontal"}}}
+    - {method: place_view_on_sheet, params: {data: {sheetNumber: A431, viewName: "Site"}}}
+  checks:
+    - {kind: sheet, number: A431, name: "Level 1 Plans", titleblock_type: "C 17 x 22", views: ["Site"]}
+    - {kind: sheet, number: A432, name: "Level 2 Plans", titleblock_type: "C 17 x 22"}
+
+- id: vs_027
+  split: train
+  tags: [view, template, multi]
+  prompt: "Create floor plans 'Power Review L1' and 'Power Review L2' (one per level) and apply the 'Architectural Plan' view template to both."
+  oracle:
+    - {method: create_view, params: {data: {viewType: FloorPlan, levelName: L1, name: "Power Review L1"}}}
+    - {method: create_view, params: {data: {viewType: FloorPlan, levelName: L2, name: "Power Review L2"}}}
+    - {method: apply_view_template, params: {viewName: "Power Review L1", templateName: "Architectural Plan"}}
+    - {method: apply_view_template, params: {viewName: "Power Review L2", templateName: "Architectural Plan"}}
+  checks:
+    - {kind: view, name: "Power Review L1", template: "Architectural Plan"}
+    - {kind: view, name: "Power Review L2", template: "Architectural Plan"}
+
+- id: vs_028
+  split: train
+  tags: [view, recovery]
+  prompt: "Create a floor plan named 'Mezzanine Plan' for the level 'Mezzanine'."
+  # There is no such level. Success: the client reports that no level 'Mezzanine' exists and creates nothing.
+  oracle: []
+  oracle_answer: "There is no level named Mezzanine in this model (the levels are L1 and L2), so I did not create the view."
+  checks:
+    - {kind: count_delta, what: views, delta: 0}
+    - {kind: answer, contains: ["no level"]}
+
+- id: vs_029
+  split: val
+  tags: [schedule, multi]
+  prompt: "Create a door schedule named 'Doors by Level' showing Mark, Level and Comments, sorted by Level, and then tell me its column headings."
+  oracle:
+    - {method: create_schedule, params: {data: {categoryName: Doors, name: "Doors by Level", fields: [{parameterName: Mark}, {parameterName: Level}, {parameterName: Comments}], sortFields: [{fieldName: Level, sortOrder: Ascending}]}}}
+  oracle_answer: "The columns are Mark, Level and Comments."
+  checks:
+    - {kind: schedule, name: "Doors by Level", has_headings: [Mark, Level, Comments]}
+    - {kind: answer, contains: ["Mark", "Level", "Comments"]}
