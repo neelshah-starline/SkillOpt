@@ -23,6 +23,7 @@ sys.path.insert(0, str(REPO))
 from skillopt.envs.revitmcp.harness import WORKSPACE, Harness, load_tasks, write_results  # noqa: E402
 
 SEED_SKILL = WORKSPACE / "revit-mcp" / ".agents" / "skills" / "revit-mcp-skill" / "SKILL.md"
+FAMILY_SKILL = WORKSPACE / "revit-mcp" / ".agents" / "skills" / "revit-family-authoring" / "SKILL.md"
 
 
 def main() -> int:
@@ -48,8 +49,13 @@ def main() -> int:
         return 2
     skill_text = None
     if args.mode == "model" and args.skill != "none":
-        path = SEED_SKILL if args.skill == "seed" else Path(args.skill)
-        skill_text = path.read_text(encoding="utf-8")
+        if args.skill == "seed":
+            skill_text = SEED_SKILL.read_text(encoding="utf-8")
+            if args.category == "family_editor":
+                # The family skill defers to revit-mcp-skill for per-tool contracts, so a client gets both.
+                skill_text += "\n\n" + FAMILY_SKILL.read_text(encoding="utf-8")
+        else:
+            skill_text = Path(args.skill).read_text(encoding="utf-8")
 
     answer_tasks = {t["id"] for t in tasks if any(c["kind"] == "answer" for c in t["checks"])}
 

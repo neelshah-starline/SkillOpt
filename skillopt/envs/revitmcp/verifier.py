@@ -229,14 +229,29 @@ def verify(c: RevitClient, snap: dict, checks: list[dict], final_text: str = "")
     return verdict
 
 
+def _substitute(value: Any, form_id: Any) -> Any:
+    """Replace the "$LAST_FORM_ID" placeholder (the elementId of the family form created most recently by the task's
+    setup or oracle) so a solution can lock or drive a form it has just made."""
+    if value == "$LAST_FORM_ID":
+        return form_id
+    if isinstance(value, dict):
+        return {k: _substitute(v, form_id) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_substitute(v, form_id) for v in value]
+    return value
+
+
 def run_calls(c: RevitClient, calls: list[dict[str, Any]]) -> list[Any]:
     """Run harness-side RPC calls (a task's setup or its oracle solution)."""
     out = []
     for call in calls:
-        result = c.call(call["method"], call.get("params", {}), timeout=180)
+        params = _substitute(call.get("params", {}), getattr(c, "last_form_id", None))
+        result = c.call(call["method"], params, timeout=180)
         # Commands report most failures as {"success": false, ...} in the result, not as a JSON-RPC error.
         if isinstance(result, dict) and result.get("success") is False:
             raise RevitRpcError(call["method"], {"code": result.get("errorCode"), "message": result.get("error")})
+        if isinstance(result, dict) and result.get("formType") == "Extrusion":
+            c.last_form_id = result.get("elementId")
         out.append(result)
     return out
 

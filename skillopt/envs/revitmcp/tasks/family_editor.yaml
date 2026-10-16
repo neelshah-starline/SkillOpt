@@ -167,13 +167,104 @@
     '900 x 500 x 750' (values in millimetres). The solid box must be centred on the origin in plan, stand on the
     reference level, and FOLLOW the parameters: changing Width, Depth or Height of a type must resize the box, and the
     family must flex without errors. Do not save the family.
-  # ORACLE NOT WRITTEN YET: the parametric build (skeleton planes, labelled dimensions, locked extrusion, Height driven by
-  # associate_element_parameter on ExtrusionEnd) has to be developed live against Revit 2027 first; see the worked
-  # example in revit-mcp/.agents/skills/revit-family-authoring/SKILL.md. Until then this task cannot be validated.
-  oracle: []
+  # Built live on Revit 2027 on 2026-10-16 following the worked example in revit-family-authoring/SKILL.md: parameters,
+  # a skeleton of named planes with EQ and labelled dimensions, an extrusion drawn on the planes and locked to them,
+  # Height driven through associate_element_parameter on the extrusion's end. A plain unlocked extrusion passes the
+  # parameter, type and flex checks but fails every drive check (negative control, same day).
+  oracle:
+    - {method: create_family_from_template, params: {templatePath: 'C:\ProgramData\Autodesk\RVT 2027\Family Templates\English\Metric Generic Model.rft'}}
+    - {method: create_family_type, params: {typeName: "600 x 400 x 750"}}
+    - {method: add_family_parameter, params: {data: {name: Width, specType: Length, group: Geometry, isInstance: false}}}
+    - {method: add_family_parameter, params: {data: {name: Depth, specType: Length, group: Geometry, isInstance: false}}}
+    - {method: add_family_parameter, params: {data: {name: Height, specType: Length, group: Geometry, isInstance: false}}}
+    - {method: add_reference_plane, params: {data: {name: Left, isReference: Strong Reference, bubbleEnd: {x: -300, y: -500, z: 0}, freeEnd: {x: -300, y: 500, z: 0}}}}
+    - {method: add_reference_plane, params: {data: {name: Right, isReference: Strong Reference, bubbleEnd: {x: 300, y: -500, z: 0}, freeEnd: {x: 300, y: 500, z: 0}}}}
+    - {method: add_reference_plane, params: {data: {name: Front, isReference: Strong Reference, bubbleEnd: {x: -500, y: -200, z: 0}, freeEnd: {x: 500, y: -200, z: 0}}}}
+    - {method: add_reference_plane, params: {data: {name: Back, isReference: Strong Reference, bubbleEnd: {x: -500, y: 200, z: 0}, freeEnd: {x: 500, y: 200, z: 0}}}}
+    - {method: add_reference_plane, params: {data: {name: Top, isReference: Strong Reference, bubbleEnd: {x: -500, y: 0, z: 750}, freeEnd: {x: 500, y: 0, z: 750}, thirdPoint: {x: 0, y: 500, z: 750}}}}
+    - {method: add_family_dimension, params: {references: [Left, Center (Left/Right), Right], eq: true}}
+    - {method: add_family_dimension, params: {references: [Front, Center (Front/Back), Back], eq: true}}
+    - {method: add_family_dimension, params: {references: [Left, Right], label: Width}}
+    - {method: add_family_dimension, params: {references: [Front, Back], label: Depth}}
+    - {method: add_family_dimension, params: {references: [Reference Plane, Top], label: Height}}
+    - {method: create_extrusion, params: {data: {isSolid: true, depth: 750, profile: {outerLoop: [
+        {p0: {x: -300, y: -200, z: 0}, p1: {x: 300, y: -200, z: 0}},
+        {p0: {x: 300, y: -200, z: 0}, p1: {x: 300, y: 200, z: 0}},
+        {p0: {x: 300, y: 200, z: 0}, p1: {x: -300, y: 200, z: 0}},
+        {p0: {x: -300, y: 200, z: 0}, p1: {x: -300, y: -200, z: 0}}]}}}}
+    - {method: lock_profile_to_references, params: {formId: "$LAST_FORM_ID", planes: [Left, Right, Front, Back]}}
+    - {method: associate_element_parameter, params: {elementId: "$LAST_FORM_ID", elementParameter: ExtrusionEnd, familyParameter: Height}}
+    - {method: set_family_type_values, params: {typeName: "600 x 400 x 750", values: {Width: 600, Depth: 400, Height: 750}}}
+    - {method: create_family_type, params: {typeName: "900 x 500 x 750"}}
+    - {method: set_family_type_values, params: {typeName: "900 x 500 x 750", values: {Width: 900, Depth: 500, Height: 750}}}
   checks:
     - {kind: family_params, params: [{name: Width, dataType: Length}, {name: Depth, dataType: Length}, {name: Height, dataType: Length}]}
     - {kind: family_types, types: ["600 x 400 x 750", "900 x 500 x 750"], values: {"600 x 400 x 750": {Width: 600, Depth: 400, Height: 750}, "900 x 500 x 750": {Width: 900, Depth: 500, Height: 750}}}
+    - {kind: family_flex, min_trials: 3}
+    - {kind: family_drive, type: "900 x 500 x 750", param: Width, value_mm: 1000, axis: x, centered: true}
+    - {kind: family_drive, type: "900 x 500 x 750", param: Depth, value_mm: 700, axis: y, centered: true}
+    - {kind: family_drive, type: "900 x 500 x 750", param: Height, value_mm: 1200, axis: z}
+
+- id: fe_011
+  split: val
+  tags: [geometry]
+  allow_tools: [create_family_from_template]
+  prompt: "In the open Generic Model family, create a solid box 600 x 400 x 750 mm centred on the origin, and a square VOID 200 x 200 mm (centred, through the full height of the box) cut out of it."
+  setup:
+    - {method: create_family_from_template, params: {templatePath: 'C:\ProgramData\Autodesk\RVT 2027\Family Templates\English\Metric Generic Model.rft'}}
+  oracle:
+    - {method: create_extrusion, params: {data: {isSolid: true, depth: 750, profile: {outerLoop: [
+        {p0: {x: -300, y: -200, z: 0}, p1: {x: 300, y: -200, z: 0}},
+        {p0: {x: 300, y: -200, z: 0}, p1: {x: 300, y: 200, z: 0}},
+        {p0: {x: 300, y: 200, z: 0}, p1: {x: -300, y: 200, z: 0}},
+        {p0: {x: -300, y: 200, z: 0}, p1: {x: -300, y: -200, z: 0}}]}}}}
+    - {method: create_extrusion, params: {data: {isSolid: false, depth: 750, profile: {outerLoop: [
+        {p0: {x: -100, y: -100, z: 0}, p1: {x: 100, y: -100, z: 0}},
+        {p0: {x: 100, y: -100, z: 0}, p1: {x: 100, y: 100, z: 0}},
+        {p0: {x: 100, y: 100, z: 0}, p1: {x: -100, y: 100, z: 0}},
+        {p0: {x: -100, y: 100, z: 0}, p1: {x: -100, y: -100, z: 0}}]}}}}
+  checks:
+    - {kind: family_forms, min_solids: 1, min_voids: 1, size_mm: [600, 400, 750], centered_xy: true}
+
+- id: fe_021
+  split: test
+  tags: [parametric, repair]
+  allow_tools: [create_family_from_template]
+  max_turns: 40
+  prompt: >-
+    The open Generic Model family has Length type parameters Width, Depth and Height, the types '600 x 400 x 750' and
+    '900 x 500 x 750', reference planes Left, Right, Front, Back and Top with labelled dimensions, and a box extrusion.
+    But the box does not follow the parameters: changing Width, Depth or Height of a type does not resize it. Fix the
+    family so the box is driven by the parameters (Width and Depth about the centre, Height upward from the reference
+    level), without recreating the planes or parameters.
+  setup:
+    - {method: create_family_from_template, params: {templatePath: 'C:\ProgramData\Autodesk\RVT 2027\Family Templates\English\Metric Generic Model.rft'}}
+    - {method: create_family_type, params: {typeName: "600 x 400 x 750"}}
+    - {method: add_family_parameter, params: {data: {name: Width, specType: Length, group: Geometry, isInstance: false}}}
+    - {method: add_family_parameter, params: {data: {name: Depth, specType: Length, group: Geometry, isInstance: false}}}
+    - {method: add_family_parameter, params: {data: {name: Height, specType: Length, group: Geometry, isInstance: false}}}
+    - {method: add_reference_plane, params: {data: {name: Left, isReference: Strong Reference, bubbleEnd: {x: -300, y: -500, z: 0}, freeEnd: {x: -300, y: 500, z: 0}}}}
+    - {method: add_reference_plane, params: {data: {name: Right, isReference: Strong Reference, bubbleEnd: {x: 300, y: -500, z: 0}, freeEnd: {x: 300, y: 500, z: 0}}}}
+    - {method: add_reference_plane, params: {data: {name: Front, isReference: Strong Reference, bubbleEnd: {x: -500, y: -200, z: 0}, freeEnd: {x: 500, y: -200, z: 0}}}}
+    - {method: add_reference_plane, params: {data: {name: Back, isReference: Strong Reference, bubbleEnd: {x: -500, y: 200, z: 0}, freeEnd: {x: 500, y: 200, z: 0}}}}
+    - {method: add_reference_plane, params: {data: {name: Top, isReference: Strong Reference, bubbleEnd: {x: -500, y: 0, z: 750}, freeEnd: {x: 500, y: 0, z: 750}, thirdPoint: {x: 0, y: 500, z: 750}}}}
+    - {method: add_family_dimension, params: {references: [Left, Center (Left/Right), Right], eq: true}}
+    - {method: add_family_dimension, params: {references: [Front, Center (Front/Back), Back], eq: true}}
+    - {method: add_family_dimension, params: {references: [Left, Right], label: Width}}
+    - {method: add_family_dimension, params: {references: [Front, Back], label: Depth}}
+    - {method: add_family_dimension, params: {references: [Reference Plane, Top], label: Height}}
+    - {method: create_extrusion, params: {data: {isSolid: true, depth: 750, profile: {outerLoop: [
+        {p0: {x: -300, y: -200, z: 0}, p1: {x: 300, y: -200, z: 0}},
+        {p0: {x: 300, y: -200, z: 0}, p1: {x: 300, y: 200, z: 0}},
+        {p0: {x: 300, y: 200, z: 0}, p1: {x: -300, y: 200, z: 0}},
+        {p0: {x: -300, y: 200, z: 0}, p1: {x: -300, y: -200, z: 0}}]}}}}
+    - {method: set_family_type_values, params: {typeName: "600 x 400 x 750", values: {Width: 600, Depth: 400, Height: 750}}}
+    - {method: create_family_type, params: {typeName: "900 x 500 x 750"}}
+    - {method: set_family_type_values, params: {typeName: "900 x 500 x 750", values: {Width: 900, Depth: 500, Height: 750}}}
+  oracle:
+    - {method: lock_profile_to_references, params: {formId: "$LAST_FORM_ID", planes: [Left, Right, Front, Back]}}
+    - {method: associate_element_parameter, params: {elementId: "$LAST_FORM_ID", elementParameter: ExtrusionEnd, familyParameter: Height}}
+  checks:
     - {kind: family_flex, min_trials: 3}
     - {kind: family_drive, type: "900 x 500 x 750", param: Width, value_mm: 1000, axis: x, centered: true}
     - {kind: family_drive, type: "900 x 500 x 750", param: Depth, value_mm: 700, axis: y, centered: true}
