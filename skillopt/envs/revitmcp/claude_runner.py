@@ -33,6 +33,7 @@ class RolloutTrace:
     final_text: str = ""
     tool_calls: int = 0
     tool_errors: int = 0
+    timeouts: int = 0
     turns: int = 0
     duration_s: float = 0.0
     cost_usd: float = 0.0
@@ -75,6 +76,13 @@ def write_mcp_config(path: Path, server_js: Path, port: int) -> Path:
     }
     path.write_text(json.dumps(config), encoding="utf-8")
     return path
+
+
+def _result_text(block: dict) -> str:
+    content = block.get("content")
+    if isinstance(content, list):
+        return " ".join(str(c.get("text", "")) for c in content if isinstance(c, dict))
+    return str(content or "")
 
 
 def _is_error_result(block: dict) -> bool:
@@ -157,6 +165,8 @@ def run_task(
                     if isinstance(block, dict) and block.get("type") == "tool_result":
                         failed = _is_error_result(block)
                         trace.tool_errors += int(failed)
+                        # A TIMEOUT means Revit stopped answering (busy or blocked), not that the client erred.
+                        trace.timeouts += int(failed and "TIMEOUT" in _result_text(block))
                         trace.conversation.append(
                             {"type": "tool_result", "id": block.get("tool_use_id"), "is_error": failed, "content": block.get("content")}
                         )

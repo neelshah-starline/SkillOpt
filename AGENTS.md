@@ -13,7 +13,7 @@ Own git repo (`origin` = `github.com/neelshah-starline/SkillOpt`, `upstream` = `
 ## Local Contracts
 
 - Full design: [docs/plans/SKILLOPT_INTEGRATION_PLAN.md](../docs/plans/SKILLOPT_INTEGRATION_PLAN.md) — **not yet implemented**, treat as a proposal until that doc is updated to say otherwise.
-- Planned custom environment lives at `skillopt/envs/revitmcp/` (not created yet), modeled on the upstream `skillopt/envs/officeqa/` reference (closest existing analog — a tool-calling benchmark).
+- The environment is `skillopt/envs/revitmcp/`: `revit_client.py` (JSON-RPC over the plugin socket), `session.py` (Revit 2027 process, dialog watcher, anchor document and scratch-copy reset), `claude_runner.py` (`claude -p` against the real revit-mcp server with stream-json capture; used for the TARGET model because SkillOpt's own `claude_code_exec` backend is text-only with no MCP), `verifier.py` (scores from Revit state), `harness.py`, and `tasks/*.yaml` (each task has an oracle solution). It is not modeled on `officeqa`: that env's exec path uses Claude Code's own Read/Bash, not our tools.
 - Training backend: `claude_code_exec` in CLI mode (`use_sdk: false`) — uses the existing Claude Code subscription via the local `claude` binary, not a separate `ANTHROPIC_API_KEY`. See the plan doc for the tradeoffs (subscription rate limits, `bypassPermissions` safety implications) accepted for this choice.
 - Rollouts execute real RevitMCP tools against a live Revit + plugin session with no per-action confirmation — the target model path must pass a safety allowlist check before any rollout batch starts (design only, not built).
 

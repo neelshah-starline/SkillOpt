@@ -50,6 +50,7 @@ class TaskResult:
     cost_usd: float = 0.0
     five_hour: float | None = None
     stop: str = ""
+    infra_retried: bool = False
     pre_pass: bool | None = None
     conversation: list = field(default_factory=list)
 
@@ -99,7 +100,7 @@ class Harness:
         time.sleep(3)
         self._start()
 
-    def run(self, task: dict, mode: str, skill_text: str | None) -> TaskResult:
+    def run(self, task: dict, mode: str, skill_text: str | None, _retry: bool = True) -> TaskResult:
         """mode: 'model' (claude -p with the skill), 'oracle' (the task's reference solution), 'none' (checks only)."""
         assert self.session is not None
         if self.session.dirty or not self.revit.alive() or self.done_since_start >= RECYCLE_EVERY:
@@ -123,6 +124,16 @@ class Harness:
                     model=self.model,
                     max_turns=int(task.get("max_turns", self.max_turns)),
                 )
+            if mode == "model" and trace.timeouts >= 2:
+                # Revit stopped answering during the rollout: that is infrastructure, not the skill. Restart and retry once.
+                s.dirty = True
+                if _retry:
+                    s.teardown_quietly()
+                    self.done_since_start += 1
+                    self._restart()
+                    retried = self.run(task, mode, skill_text, _retry=False)
+                    retried.infra_retried = True
+                    return retried
             verdict: Verdict = verify(s.client, snap, task["checks"], trace.final_text)
             return TaskResult(
                 id=task["id"],

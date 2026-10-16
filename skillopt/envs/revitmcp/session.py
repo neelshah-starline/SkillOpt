@@ -180,5 +180,9 @@ class RevitSession:
                 except OSError:
                     time.sleep(1)
 
+    def teardown_quietly(self) -> None:
+        """Forget the task copy of a Revit that is about to be restarted (its documents die with the process)."""
+        self.current_copy = None
+
     def close(self) -> None:
         self.client.close()
