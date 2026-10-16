@@ -778,7 +778,7 @@ class ClaudeCliBackend(CliBackend):
         clean_cwd = tempfile.mkdtemp(prefix="skillopt_sleep_claude_")
         try:
             proc = subprocess.run(
-                cmd, capture_output=True, creationflags=_NO_WINDOW, text=True, timeout=self.timeout, cwd=clean_cwd,
+                cmd, capture_output=True, creationflags=_NO_WINDOW, text=True, encoding="utf-8", errors="replace", timeout=self.timeout, cwd=clean_cwd,
                 input=prompt,
             )
         except Exception as exc:
@@ -845,7 +845,7 @@ class ClaudeCliBackend(CliBackend):
                 cmd += ["--model", self.model]
             try:
                 proc = subprocess.run(
-                    cmd, capture_output=True, creationflags=_NO_WINDOW, text=True, timeout=self.timeout, cwd=work,
+                    cmd, capture_output=True, creationflags=_NO_WINDOW, text=True, encoding="utf-8", errors="replace", timeout=self.timeout, cwd=work,
                     input=prompt,
                 )
                 resp = (proc.stdout or "").strip()

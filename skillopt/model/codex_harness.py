@@ -932,7 +932,7 @@ def _run_claude_code_cli_exec(
             cmd,
             cwd=work_dir,
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8", errors="replace",
             timeout=timeout,
         )
     except subprocess.TimeoutExpired as exc:
@@ -1386,7 +1386,7 @@ def _run_codex_cli_exec(
             cmd,
             cwd=work_dir,
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8", errors="replace",
             timeout=timeout,
         )
     except subprocess.TimeoutExpired as exc:
@@ -1814,7 +1814,7 @@ def run_cursor_exec(
                 cmd,
                 cwd=work_dir,
                 capture_output=True,
-                text=True,
+                text=True, encoding="utf-8", errors="replace",
                 timeout=timeout,
                 input=attempt_prompt,
             )

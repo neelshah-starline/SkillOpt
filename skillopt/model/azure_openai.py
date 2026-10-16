@@ -271,7 +271,7 @@ def _make_azure_cli_token_provider(ad_scope: str):
                 "-o",
                 "json",
             ],
-            text=True,
+            text=True, encoding="utf-8", errors="replace",
             stderr=subprocess.STDOUT,
         )
         payload = json.loads(raw)
