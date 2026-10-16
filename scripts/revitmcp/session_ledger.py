@@ -1,6 +1,8 @@
 """Harvest real RevitMCP sessions into a durable ledger and report on them.
 
-  python scripts/revitmcp/session_ledger.py harvest            # add new/updated episodes from ~/.claude/projects
+  python scripts/revitmcp/session_ledger.py harvest            # add new/updated episodes from Claude Code transcripts
+                                                               # (~/.claude/projects) AND the revit-mcp call log (~/.revitmcp/calls,
+                                                               # written by the server for every MCP client: Cline, Antigravity, ...)
   python scripts/revitmcp/session_ledger.py report             # outcomes and the most common failures
   python scripts/revitmcp/session_ledger.py evidence [--limit 30] [--out file.md]
                                                                # failed / corrected / recovered episodes as a reflection digest
@@ -26,13 +28,14 @@ def main() -> int:
     ap.add_argument("command", choices=["harvest", "report", "evidence"])
     ap.add_argument("--ledger", default=str(sl.DEFAULT_LEDGER))
     ap.add_argument("--projects", default=str(sl.DEFAULT_PROJECTS))
+    ap.add_argument("--calls", default=str(sl.DEFAULT_CALLS), help="the revit-mcp call log directory (all MCP clients)")
     ap.add_argument("--limit", type=int, default=30)
     ap.add_argument("--out", default="")
     args = ap.parse_args()
     ledger = Path(args.ledger)
 
     if args.command == "harvest":
-        new, updated = sl.harvest(Path(args.projects), ledger)
+        new, updated = sl.harvest(Path(args.projects), ledger, calls_dir=Path(args.calls))
         print(f"ledger {ledger}: {new} new, {updated} updated, {len(sl.load_ledger(ledger))} total")
         return 0
 
