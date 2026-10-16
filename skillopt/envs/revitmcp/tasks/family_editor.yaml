@@ -1,0 +1,180 @@
+# Family Editor tasks. Family tools act on the family document open for editing, which the harness leaves open beside
+# the task copy of BLANK.rvt and closes (without saving) afterwards. `setup` builds the starting family with raw plugin
+# calls; add_reference_plane, add_reference_line, add_family_parameter, create_extrusion and create_revolution need the
+# `data` wrapper over the raw socket (the MCP tools add it). Lengths are millimetres.
+#
+# STATUS 2026-10-16: drafted offline while Revit 2027 was in use by someone else. NONE of these oracles has been run yet;
+# validate with  python scripts/revitmcp/run_tasks.py --category family_editor --mode oracle  before trusting any task.
+#
+# The template path is part of every from-scratch prompt: a client cannot guess where Revit keeps its templates.
+
+- id: fe_001
+  split: train
+  tags: [parameters]
+  allow_tools: [create_family_from_template]
+  prompt: "A Generic Model family is open for editing. Add three Length type parameters named Width, Depth and Height, in the Geometry group."
+  setup:
+    - {method: create_family_from_template, params: {templatePath: 'C:\ProgramData\Autodesk\RVT 2027\Family Templates\English\Metric Generic Model.rft'}}
+  oracle:
+    - {method: add_family_parameter, params: {data: {name: Width, specType: Length, group: Geometry, isInstance: false}}}
+    - {method: add_family_parameter, params: {data: {name: Depth, specType: Length, group: Geometry, isInstance: false}}}
+    - {method: add_family_parameter, params: {data: {name: Height, specType: Length, group: Geometry, isInstance: false}}}
+  checks:
+    - {kind: family_params, params: [{name: Width, dataType: Length, isInstance: false}, {name: Depth, dataType: Length, isInstance: false}, {name: Height, dataType: Length, isInstance: false}]}
+
+- id: fe_002
+  split: train
+  tags: [parameters]
+  allow_tools: [create_family_from_template]
+  prompt: "A Generic Model family is open for editing. Add a Text instance parameter called 'Finish Note' and an Integer type parameter called 'Shelf Count'."
+  setup:
+    - {method: create_family_from_template, params: {templatePath: 'C:\ProgramData\Autodesk\RVT 2027\Family Templates\English\Metric Generic Model.rft'}}
+  oracle:
+    - {method: add_family_parameter, params: {data: {name: Finish Note, specType: Text, isInstance: true}}}
+    - {method: add_family_parameter, params: {data: {name: Shelf Count, specType: Integer, isInstance: false}}}
+  checks:
+    - {kind: family_params, params: [{name: Finish Note, dataType: Text, isInstance: true}, {name: Shelf Count, dataType: Integer, isInstance: false}]}
+
+- id: fe_003
+  split: train
+  tags: [types]
+  allow_tools: [create_family_from_template]
+  prompt: "The open Generic Model family already has Length type parameters Width and Depth. Create two family types named '600 x 400' and '900 x 500', and set Width and Depth on each to the sizes in its name (millimetres)."
+  setup:
+    - {method: create_family_from_template, params: {templatePath: 'C:\ProgramData\Autodesk\RVT 2027\Family Templates\English\Metric Generic Model.rft'}}
+    - {method: add_family_parameter, params: {data: {name: Width, specType: Length, group: Geometry, isInstance: false}}}
+    - {method: add_family_parameter, params: {data: {name: Depth, specType: Length, group: Geometry, isInstance: false}}}
+  oracle:
+    - {method: create_family_type, params: {typeName: "600 x 400"}}
+    - {method: set_family_type_values, params: {typeName: "600 x 400", values: {Width: 600, Depth: 400}}}
+    - {method: create_family_type, params: {typeName: "900 x 500"}}
+    - {method: set_family_type_values, params: {typeName: "900 x 500", values: {Width: 900, Depth: 500}}}
+  checks:
+    - {kind: family_types, types: ["600 x 400", "900 x 500"], values: {"600 x 400": {Width: 600, Depth: 400}, "900 x 500": {Width: 900, Depth: 500}}}
+
+- id: fe_004
+  split: train
+  tags: [skeleton]
+  allow_tools: [create_family_from_template]
+  prompt: "In the open Generic Model family, add four named reference planes forming a 600 mm (left to right) by 400 mm (front to back) rectangle centred on the origin: 'Left' and 'Right' at x = -300 and +300, 'Front' and 'Back' at y = -200 and +200. Make them all reference planes (Is Reference)."
+  setup:
+    - {method: create_family_from_template, params: {templatePath: 'C:\ProgramData\Autodesk\RVT 2027\Family Templates\English\Metric Generic Model.rft'}}
+  oracle:
+    - {method: add_reference_plane, params: {data: {name: Left, isReference: Strong Reference, bubbleEnd: {x: -300, y: -500, z: 0}, freeEnd: {x: -300, y: 500, z: 0}}}}
+    - {method: add_reference_plane, params: {data: {name: Right, isReference: Strong Reference, bubbleEnd: {x: 300, y: -500, z: 0}, freeEnd: {x: 300, y: 500, z: 0}}}}
+    - {method: add_reference_plane, params: {data: {name: Front, isReference: Strong Reference, bubbleEnd: {x: -500, y: -200, z: 0}, freeEnd: {x: 500, y: -200, z: 0}}}}
+    - {method: add_reference_plane, params: {data: {name: Back, isReference: Strong Reference, bubbleEnd: {x: -500, y: 200, z: 0}, freeEnd: {x: 500, y: 200, z: 0}}}}
+  checks:
+    - {kind: family_planes, planes: [{name: Left, at: {axis: x, value: -300}, is_reference: true}, {name: Right, at: {axis: x, value: 300}, is_reference: true}, {name: Front, at: {axis: y, value: -200}, is_reference: true}, {name: Back, at: {axis: y, value: 200}, is_reference: true}]}
+
+- id: fe_005
+  split: val
+  tags: [skeleton, dimension]
+  allow_tools: [create_family_from_template]
+  prompt: "The open Generic Model family has reference planes 'Left' and 'Right' and a Length parameter 'Width'. Dimension Left to Right and label the dimension with Width, so Width drives the planes. Then confirm the family still flexes."
+  setup:
+    - {method: create_family_from_template, params: {templatePath: 'C:\ProgramData\Autodesk\RVT 2027\Family Templates\English\Metric Generic Model.rft'}}
+    - {method: create_family_type, params: {typeName: "600"}}
+    - {method: add_family_parameter, params: {data: {name: Width, specType: Length, group: Geometry, isInstance: false}}}
+    - {method: add_reference_plane, params: {data: {name: Left, isReference: Strong Reference, bubbleEnd: {x: -300, y: -500, z: 0}, freeEnd: {x: -300, y: 500, z: 0}}}}
+    - {method: add_reference_plane, params: {data: {name: Right, isReference: Strong Reference, bubbleEnd: {x: 300, y: -500, z: 0}, freeEnd: {x: 300, y: 500, z: 0}}}}
+  oracle:
+    - {method: add_family_dimension, params: {references: [Left, Right], label: Width}}
+  checks:
+    - {kind: family_dimensions, labels: [Width]}
+    - {kind: family_flex}
+
+- id: fe_006
+  split: train
+  tags: [parameters]
+  allow_tools: [create_family_from_template]
+  prompt: "In the open family, rename the parameter 'Width' to 'Overall Width'."
+  setup:
+    - {method: create_family_from_template, params: {templatePath: 'C:\ProgramData\Autodesk\RVT 2027\Family Templates\English\Metric Generic Model.rft'}}
+    - {method: add_family_parameter, params: {data: {name: Width, specType: Length, group: Geometry, isInstance: false}}}
+  oracle:
+    - {method: rename_family_parameter, params: {name: Width, newName: Overall Width}}
+  checks:
+    - {kind: family_params, params: [{name: Overall Width, dataType: Length}], absent: [Width]}
+
+- id: fe_007
+  split: train
+  tags: [parameters]
+  allow_tools: [create_family_from_template]
+  prompt: "In the open family, delete the parameter 'Spare Length'. Leave the other parameters alone."
+  setup:
+    - {method: create_family_from_template, params: {templatePath: 'C:\ProgramData\Autodesk\RVT 2027\Family Templates\English\Metric Generic Model.rft'}}
+    - {method: add_family_parameter, params: {data: {name: Width, specType: Length, group: Geometry, isInstance: false}}}
+    - {method: add_family_parameter, params: {data: {name: Spare Length, specType: Length, group: Geometry, isInstance: false}}}
+  oracle:
+    - {method: delete_family_parameter, params: {name: Spare Length}}
+  checks:
+    - {kind: family_params, params: [{name: Width}], absent: ["Spare Length"]}
+
+- id: fe_008
+  split: val
+  tags: [parameters, formula]
+  allow_tools: [create_family_from_template]
+  prompt: "The open family has Length type parameters Width and Depth. Add a Length type parameter named 'Perimeter' that is calculated by the formula 2 * (Width + Depth)."
+  setup:
+    - {method: create_family_from_template, params: {templatePath: 'C:\ProgramData\Autodesk\RVT 2027\Family Templates\English\Metric Generic Model.rft'}}
+    - {method: create_family_type, params: {typeName: "Standard"}}
+    - {method: add_family_parameter, params: {data: {name: Width, specType: Length, group: Geometry, isInstance: false}}}
+    - {method: add_family_parameter, params: {data: {name: Depth, specType: Length, group: Geometry, isInstance: false}}}
+  oracle:
+    - {method: add_family_parameter, params: {data: {name: Perimeter, specType: Length, group: Geometry, isInstance: false}}}
+    - {method: set_parameter_formula, params: {parameterName: Perimeter, formula: "2 * (Width + Depth)"}}
+  checks:
+    - {kind: family_params, params: [{name: Perimeter, formula: "2 * (Width + Depth)"}]}
+
+- id: fe_009
+  split: train
+  tags: [geometry]
+  allow_tools: [create_family_from_template]
+  prompt: "In the open Generic Model family, create a solid box 600 mm wide (x), 400 mm deep (y) and 750 mm high (z), centred on the origin in plan and standing on the reference level."
+  setup:
+    - {method: create_family_from_template, params: {templatePath: 'C:\ProgramData\Autodesk\RVT 2027\Family Templates\English\Metric Generic Model.rft'}}
+  oracle:
+    - {method: create_extrusion, params: {data: {isSolid: true, depth: 750, profile: {outerLoop: [
+        {p0: {x: -300, y: -200, z: 0}, p1: {x: 300, y: -200, z: 0}},
+        {p0: {x: 300, y: -200, z: 0}, p1: {x: 300, y: 200, z: 0}},
+        {p0: {x: 300, y: 200, z: 0}, p1: {x: -300, y: 200, z: 0}},
+        {p0: {x: -300, y: 200, z: 0}, p1: {x: -300, y: -200, z: 0}}]}}}}
+  checks:
+    - {kind: family_forms, min_solids: 1, size_mm: [600, 400, 750], centered_xy: true}
+
+- id: fe_010
+  split: train
+  tags: [settings]
+  allow_tools: [create_family_from_template]
+  prompt: "Change the category of the open family to Furniture."
+  setup:
+    - {method: create_family_from_template, params: {templatePath: 'C:\ProgramData\Autodesk\RVT 2027\Family Templates\English\Metric Generic Model.rft'}}
+  oracle:
+    - {method: edit_family_settings, params: {category: Furniture}}
+  checks:
+    - {kind: family_category, category: Furniture}
+
+- id: fe_020
+  split: test
+  tags: [parametric, multi]
+  allow_tools: [create_family_from_template]
+  max_turns: 60
+  prompt: >-
+    Build a parametric Generic Model box family from the template
+    'C:\ProgramData\Autodesk\RVT 2027\Family Templates\English\Metric Generic Model.rft'.
+    It needs Length type parameters Width (x), Depth (y) and Height (z) and two types, '600 x 400 x 750' and
+    '900 x 500 x 750' (values in millimetres). The solid box must be centred on the origin in plan, stand on the
+    reference level, and FOLLOW the parameters: changing Width, Depth or Height of a type must resize the box, and the
+    family must flex without errors. Do not save the family.
+  # ORACLE NOT WRITTEN YET: the parametric build (skeleton planes, labelled dimensions, locked extrusion, Height driven by
+  # associate_element_parameter on ExtrusionEnd) has to be developed live against Revit 2027 first; see the worked
+  # example in revit-mcp/.agents/skills/revit-family-authoring/SKILL.md. Until then this task cannot be validated.
+  oracle: []
+  checks:
+    - {kind: family_params, params: [{name: Width, dataType: Length}, {name: Depth, dataType: Length}, {name: Height, dataType: Length}]}
+    - {kind: family_types, types: ["600 x 400 x 750", "900 x 500 x 750"], values: {"600 x 400 x 750": {Width: 600, Depth: 400, Height: 750}, "900 x 500 x 750": {Width: 900, Depth: 500, Height: 750}}}
+    - {kind: family_flex, min_trials: 3}
+    - {kind: family_drive, type: "900 x 500 x 750", param: Width, value_mm: 1000, axis: x, centered: true}
+    - {kind: family_drive, type: "900 x 500 x 750", param: Depth, value_mm: 700, axis: y, centered: true}
+    - {kind: family_drive, type: "900 x 500 x 750", param: Height, value_mm: 1200, axis: z}

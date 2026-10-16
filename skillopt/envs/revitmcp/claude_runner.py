@@ -100,6 +100,7 @@ def run_task(
     max_turns: int = 24,
     timeout_s: int = 600,
     extra_denied: tuple[str, ...] = (),
+    allow_tools: tuple[str, ...] = (),
 ) -> RolloutTrace:
     """Run one task. `skill_text` is appended to the system prompt (None runs the no-skill floor)."""
     work = Path(tempfile.mkdtemp(prefix="revitmcp_rollout_"))
@@ -111,7 +112,7 @@ def run_task(
         "--strict-mcp-config",
         "--mcp-config", str(mcp_config),
         "--tools", "",
-        "--disallowedTools", *[f"mcp__revit-mcp__{t}" for t in (*DENIED_TOOLS, *extra_denied)],
+        "--disallowedTools", *[f"mcp__revit-mcp__{t}" for t in (*DENIED_TOOLS, *extra_denied) if t not in allow_tools],
         "--permission-mode", "bypassPermissions",
         "--disable-slash-commands",
         "--setting-sources", "",

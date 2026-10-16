@@ -11,6 +11,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+from .family_checks import FAMILY_CHECKS
 from .revit_client import RevitClient, RevitRpcError
 
 
@@ -52,11 +53,14 @@ def _schedules(c: RevitClient) -> list[dict]:
 
 
 def snapshot(c: RevitClient) -> dict:
-    return {
-        "views": len(_views(c)),
-        "sheets": len(_sheets(c)),
-        "schedules": len(_schedules(c)),
-    }
+    try:
+        return {
+            "views": len(_views(c)),
+            "sheets": len(_sheets(c)),
+            "schedules": len(_schedules(c)),
+        }
+    except (RevitRpcError, KeyError, TypeError, AttributeError):
+        return {}  # e.g. a family document is active; project counts are only needed by project-category checks
 
 
 def _find_view(c: RevitClient, name: str) -> dict | None:
@@ -204,6 +208,7 @@ CHECKS: dict[str, Callable[..., tuple[bool, str]]] = {
     "viewport": _check_viewport,
     "schedule": _check_schedule,
     "sheet_named": _check_sheet_named,
+    **FAMILY_CHECKS,
 }
 
 

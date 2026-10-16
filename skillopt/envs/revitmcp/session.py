@@ -57,7 +57,23 @@ class RevitProcess:
         self.watcher: subprocess.Popen | None = None
         self.port: int | None = None
 
+    @staticmethod
+    def running_revit_2027() -> list[int]:
+        """PIDs of Revit 2027 processes already running (someone's own session)."""
+        script = (
+            "Get-Process Revit -ErrorAction SilentlyContinue | Where-Object { $_.Path -like '*Revit 2027*' } "
+            "| ForEach-Object { $_.Id }"
+        )
+        out = subprocess.run(["powershell", "-NoProfile", "-Command", script], capture_output=True, text=True).stdout
+        return [int(x) for x in out.split() if x.isdigit()]
+
     def start(self, startup_timeout: float = 240.0) -> int:
+        existing = self.running_revit_2027()
+        if existing:
+            raise UnsafeSession(
+                f"a Revit 2027 is already running (pid {existing}); it may be someone's working session, so training "
+                "will not start another or touch it. Close it, or run when it is free."
+            )
         if not Path(self.revit_exe).exists():
             raise UnsafeSession(f"Revit 2027 not found at {self.revit_exe}")
         if "2027" not in self.revit_exe:
@@ -157,18 +173,27 @@ class RevitSession:
         return copy
 
     def teardown(self) -> None:
-        """Close the task copy without saving and delete it. Marks the session dirty on any problem."""
+        """Close every document except the anchor (the task copy, and any family documents the task opened) without
+        saving, then delete the task copy. Marks the session dirty on any problem."""
         copy, self.current_copy = self.current_copy, None
         if copy is None:
             return
         try:
-            self.client.call(
-                "save_close_model",
-                {"path": str(copy), "saveMode": "none", "close": True, "discardChanges": True},
-                timeout=120,
-            )
-            remaining = [Path(d.get("file_path", "")).resolve() for d in self.documents()]
-            if self.anchor is None or remaining != [self.anchor.resolve()]:
+            anchor = self.anchor.resolve() if self.anchor else None
+            # Family documents first, then the task copy, so the active document never has to be the last one.
+            docs = sorted(self.documents(), key=lambda d: not d.get("is_family_document"))
+            for d in docs:
+                path = d.get("file_path") or ""
+                if path and Path(path).resolve() == anchor:
+                    continue
+                params = {"saveMode": "none", "close": True, "discardChanges": True}
+                params.update({"path": path} if path else {"title": d.get("title")})
+                try:
+                    self.client.call("save_close_model", params, timeout=120)
+                except RevitRpcError:
+                    self.dirty = True
+            remaining = [Path(d.get("file_path", "") or "").resolve() for d in self.documents()]
+            if anchor is None or remaining != [anchor]:
                 self.dirty = True
         except (RevitRpcError, ConnectionError, OSError):
             self.dirty = True

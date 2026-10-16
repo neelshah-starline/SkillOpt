@@ -123,6 +123,7 @@ class Harness:
                     claude_exe=self.claude,
                     model=self.model,
                     max_turns=int(task.get("max_turns", self.max_turns)),
+                    allow_tools=tuple(task.get("allow_tools", ())),
                 )
             if mode == "model" and trace.timeouts >= 2:
                 # Revit stopped answering during the rollout: that is infrastructure, not the skill. Restart and retry once.
