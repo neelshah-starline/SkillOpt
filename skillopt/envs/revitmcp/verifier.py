@@ -11,6 +11,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+from .conformance import CONFORMANCE_CHECKS
 from .family_checks import FAMILY_CHECKS
 from .revit_client import RevitClient, RevitRpcError
 
@@ -209,6 +210,7 @@ CHECKS: dict[str, Callable[..., tuple[bool, str]]] = {
     "schedule": _check_schedule,
     "sheet_named": _check_sheet_named,
     **FAMILY_CHECKS,
+    **CONFORMANCE_CHECKS,
 }
 
 
@@ -229,29 +231,50 @@ def verify(c: RevitClient, snap: dict, checks: list[dict], final_text: str = "")
     return verdict
 
 
-def _substitute(value: Any, form_id: Any) -> Any:
-    """Replace the "$LAST_FORM_ID" placeholder (the elementId of the family form created most recently by the task's
-    setup or oracle) so a solution can lock or drive a form it has just made."""
-    if value == "$LAST_FORM_ID":
-        return form_id
+PLACEHOLDER = __import__("re").compile(r"^\$(LAST_FORM_ID|LAST_PLANE_ID|FORM_ID_(\d+)|PLANE_ID_(\d+))$")
+
+
+def _substitute(value: Any, ids: dict) -> Any:
+    """Replace id placeholders in a solution's parameters with ids the task's own earlier calls produced:
+    $LAST_FORM_ID / $FORM_ID_<n> (family forms: extrusions, revolutions...) and $LAST_PLANE_ID / $PLANE_ID_<n>
+    (reference planes), n counting from 1 in creation order."""
+    if isinstance(value, str):
+        m = PLACEHOLDER.match(value)
+        if m:
+            if m.group(1) == "LAST_FORM_ID":
+                return ids["forms"][-1]
+            if m.group(1) == "LAST_PLANE_ID":
+                return ids["planes"][-1]
+            if m.group(2):
+                return ids["forms"][int(m.group(2)) - 1]
+            return ids["planes"][int(m.group(3)) - 1]
+        return value
     if isinstance(value, dict):
-        return {k: _substitute(v, form_id) for k, v in value.items()}
+        return {k: _substitute(v, ids) for k, v in value.items()}
     if isinstance(value, list):
-        return [_substitute(v, form_id) for v in value]
+        return [_substitute(v, ids) for v in value]
     return value
+
+
+def reset_ids(c: RevitClient) -> None:
+    c.created_ids = {"forms": [], "planes": []}
 
 
 def run_calls(c: RevitClient, calls: list[dict[str, Any]]) -> list[Any]:
     """Run harness-side RPC calls (a task's setup or its oracle solution)."""
+    if not hasattr(c, "created_ids"):
+        reset_ids(c)
     out = []
     for call in calls:
-        params = _substitute(call.get("params", {}), getattr(c, "last_form_id", None))
+        params = _substitute(call.get("params", {}), c.created_ids)
         result = c.call(call["method"], params, timeout=180)
         # Commands report most failures as {"success": false, ...} in the result, not as a JSON-RPC error.
         if isinstance(result, dict) and result.get("success") is False:
             raise RevitRpcError(call["method"], {"code": result.get("errorCode"), "message": result.get("error")})
-        if isinstance(result, dict) and result.get("formType") == "Extrusion":
-            c.last_form_id = result.get("elementId")
+        if isinstance(result, dict) and result.get("formType") == "ReferencePlane":
+            c.created_ids["planes"].append(result.get("elementId"))
+        elif isinstance(result, dict) and result.get("formType") and result.get("elementId") is not None:
+            c.created_ids["forms"].append(result.get("elementId"))
         out.append(result)
     return out
 

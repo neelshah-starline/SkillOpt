@@ -13,7 +13,7 @@ import yaml
 from .claude_runner import RolloutTrace, resolve_claude_exe, run_task, write_mcp_config
 from .revit_client import RevitRpcError
 from .session import RevitProcess, RevitSession
-from .verifier import Verdict, run_calls, snapshot, verify
+from .verifier import Verdict, reset_ids, run_calls, snapshot, verify
 
 REPO = Path(__file__).resolve().parents[3]
 WORKSPACE = REPO.parent
@@ -107,6 +107,7 @@ class Harness:
             self._restart()
         s = self.session
         s.reset()
+        reset_ids(s.client)
         try:
             run_calls(s.client, task.get("setup", []))
             snap = snapshot(s.client)

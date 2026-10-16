@@ -1,0 +1,98 @@
+# Family conformance tasks: the family must WORK and FOLLOW the house standard in revit-family-authoring/SKILL.md.
+# The standard is deliberately not spelled out in the prompts (they only say "follow our family authoring standard"): the
+# question is whether the skill makes a client follow it. Expect a low no-skill score; the seed skill's score is the measure.
+# Rules live in skillopt/envs/revitmcp/conformance.py, each citing the skill line it comes from.
+#
+# STATUS 2026-10-16: written offline (Revit 2027 was in use by someone else). The rules are unit-tested against fake
+# families (tests/test_revitmcp_conformance.py) but NO oracle here has been run against Revit yet. Validate with
+#   python scripts/revitmcp/run_tasks.py --category family_conformance --mode oracle
+# and run scripts/revitmcp/dump_template_params.py once so the "user parameter" rules know the template's own parameters.
+
+- id: fc_001
+  split: train
+  tags: [parametric, standard]
+  allow_tools: [create_family_from_template]
+  max_turns: 60
+  prompt: >-
+    Build a freestanding cabinet as a Generic Model family from the template
+    'C:\ProgramData\Autodesk\RVT 2027\Family Templates\English\Metric Generic Model.rft'.
+    By default it is a box 600 mm wide (left to right), 400 mm deep (front to back) and 750 mm high, standing on the
+    reference level and centred on the origin in plan. Users must be able to change the width, depth and height of each
+    type. Make two catalogue sizes, '600 x 400 x 750' and '900 x 500 x 750'. Do not save the family. Follow our family
+    authoring standard.
+  oracle:
+    - {method: create_family_from_template, params: {templatePath: 'C:\ProgramData\Autodesk\RVT 2027\Family Templates\English\Metric Generic Model.rft'}}
+    - {method: create_family_type, params: {typeName: "600 x 400 x 750"}}
+    - {method: add_family_parameter, params: {data: {name: Width, specType: Length, group: Geometry, isInstance: false}}}
+    - {method: add_family_parameter, params: {data: {name: Depth, specType: Length, group: Geometry, isInstance: false}}}
+    - {method: add_family_parameter, params: {data: {name: Height, specType: Length, group: Geometry, isInstance: false}}}
+    - {method: add_reference_plane, params: {data: {name: Left, isReference: Left, bubbleEnd: {x: -300, y: -500, z: 0}, freeEnd: {x: -300, y: 500, z: 0}}}}
+    - {method: add_reference_plane, params: {data: {name: Right, isReference: Right, bubbleEnd: {x: 300, y: -500, z: 0}, freeEnd: {x: 300, y: 500, z: 0}}}}
+    - {method: add_reference_plane, params: {data: {name: Front, isReference: Front, bubbleEnd: {x: -500, y: -200, z: 0}, freeEnd: {x: 500, y: -200, z: 0}}}}
+    - {method: add_reference_plane, params: {data: {name: Back, isReference: Back, bubbleEnd: {x: -500, y: 200, z: 0}, freeEnd: {x: 500, y: 200, z: 0}}}}
+    - {method: add_reference_plane, params: {data: {name: Top, isReference: Top, bubbleEnd: {x: -500, y: 0, z: 750}, freeEnd: {x: 500, y: 0, z: 750}, thirdPoint: {x: 0, y: 500, z: 750}}}}
+    - {method: add_family_dimension, params: {references: [Left, Center (Left/Right), Right], eq: true}}
+    - {method: add_family_dimension, params: {references: [Front, Center (Front/Back), Back], eq: true}}
+    - {method: add_family_dimension, params: {references: [Left, Right], label: Width}}
+    - {method: add_family_dimension, params: {references: [Front, Back], label: Depth}}
+    - {method: add_family_dimension, params: {references: [Reference Plane, Top], label: Height}}
+    - {method: create_extrusion, params: {data: {isSolid: true, depth: 750, profile: {outerLoop: [
+        {p0: {x: -300, y: -200, z: 0}, p1: {x: 300, y: -200, z: 0}},
+        {p0: {x: 300, y: -200, z: 0}, p1: {x: 300, y: 200, z: 0}},
+        {p0: {x: 300, y: 200, z: 0}, p1: {x: -300, y: 200, z: 0}},
+        {p0: {x: -300, y: 200, z: 0}, p1: {x: -300, y: -200, z: 0}}]}}}}
+    - {method: lock_profile_to_references, params: {formId: "$LAST_FORM_ID", planes: [Left, Right, Front, Back]}}
+    - {method: associate_element_parameter, params: {elementId: "$LAST_FORM_ID", elementParameter: ExtrusionEnd, familyParameter: Height}}
+    - {method: set_family_type_values, params: {typeName: "600 x 400 x 750", values: {Width: 600, Depth: 400, Height: 750}}}
+    - {method: create_family_type, params: {typeName: "900 x 500 x 750"}}
+    - {method: set_family_type_values, params: {typeName: "900 x 500 x 750", values: {Width: 900, Depth: 500, Height: 750}}}
+  checks:
+    - {kind: family_types, types: ["600 x 400 x 750", "900 x 500 x 750"]}
+    - {kind: family_flex, min_trials: 3}
+    - {kind: family_params_move_geometry, min_params: 3}
+    - {kind: family_conformance, rules: [eq_symmetry, params_driven, param_names, param_scope, param_groups, type_names, plane_names, reference_types, no_duplicate_planes]}
+
+- id: fc_002
+  split: val
+  tags: [repair, standard]
+  allow_tools: [create_family_from_template]
+  prompt: "The open Generic Model family has the right parameters and types but was set up carelessly, so it does not follow our family authoring standard (names, parameter scope and group, a leftover unnamed plane). Bring it into line with the standard without losing any parameter or type."
+  setup:
+    - {method: create_family_from_template, params: {templatePath: 'C:\ProgramData\Autodesk\RVT 2027\Family Templates\English\Metric Generic Model.rft'}}
+    - {method: create_family_type, params: {typeName: "Cabinet 600 wide"}}
+    - {method: add_family_parameter, params: {data: {name: "box width", specType: Length, group: Constraints, isInstance: true}}}
+    - {method: add_family_parameter, params: {data: {name: "shelf height", specType: Length, group: Constraints, isInstance: true}}}
+    - {method: add_reference_plane, params: {data: {bubbleEnd: {x: 100, y: -500, z: 0}, freeEnd: {x: 100, y: 500, z: 0}}}}
+  oracle:
+    - {method: rename_family_parameter, params: {name: "box width", newName: Box_Width}}
+    - {method: rename_family_parameter, params: {name: "shelf height", newName: Shelf_Height}}
+    - {method: edit_family_parameter, params: {name: Box_Width, isInstance: false, group: Geometry}}
+    - {method: edit_family_parameter, params: {name: Shelf_Height, isInstance: false, group: Geometry}}
+    - {method: edit_family_type, params: {typeName: "Cabinet 600 wide", renameTo: "600"}}
+    - {method: delete_family_element, params: {elementIds: ["$LAST_PLANE_ID"]}}
+  checks:
+    - {kind: family_params, params: [{name: Box_Width}, {name: Shelf_Height}], absent: ["box width", "shelf height"]}
+    - {kind: family_conformance, rules: [param_names, param_scope, param_groups, type_names, plane_names]}
+
+- id: fc_003
+  split: test
+  tags: [geometry, standard]
+  allow_tools: [create_family_from_template]
+  prompt: "In the open Generic Model family, make a solid box 600 x 400 x 750 mm centred on the origin with a 200 x 200 mm square hole cut through its full height, centred. The hole must really cut the box. Follow our family authoring standard."
+  setup:
+    - {method: create_family_from_template, params: {templatePath: 'C:\ProgramData\Autodesk\RVT 2027\Family Templates\English\Metric Generic Model.rft'}}
+  oracle:
+    - {method: create_extrusion, params: {data: {isSolid: true, depth: 750, profile: {outerLoop: [
+        {p0: {x: -300, y: -200, z: 0}, p1: {x: 300, y: -200, z: 0}},
+        {p0: {x: 300, y: -200, z: 0}, p1: {x: 300, y: 200, z: 0}},
+        {p0: {x: 300, y: 200, z: 0}, p1: {x: -300, y: 200, z: 0}},
+        {p0: {x: -300, y: 200, z: 0}, p1: {x: -300, y: -200, z: 0}}]}}}}
+    - {method: create_extrusion, params: {data: {isSolid: false, depth: 750, profile: {outerLoop: [
+        {p0: {x: -100, y: -100, z: 0}, p1: {x: 100, y: -100, z: 0}},
+        {p0: {x: 100, y: -100, z: 0}, p1: {x: 100, y: 100, z: 0}},
+        {p0: {x: 100, y: 100, z: 0}, p1: {x: -100, y: 100, z: 0}},
+        {p0: {x: -100, y: 100, z: 0}, p1: {x: -100, y: -100, z: 0}}]}}}}
+    - {method: combine_family_geometry, params: {action: cut, targetIds: ["$FORM_ID_1"], cutterIds: ["$FORM_ID_2"]}}
+  checks:
+    - {kind: family_forms, min_solids: 1, min_voids: 1, size_mm: [600, 400, 750], centered_xy: true}
+    - {kind: family_conformance, rules: [void_cut, plane_names, no_duplicate_planes]}

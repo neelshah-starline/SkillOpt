@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import shutil
 import subprocess
 import tempfile
 import time
@@ -90,6 +92,19 @@ def _is_error_result(block: dict) -> bool:
     return bool(block.get("is_error"))
 
 
+def _cleanup(work: Path) -> None:
+    """Remove the scratch folder and the empty per-folder memory directory Claude Code creates for it under
+    ~/.claude/projects (one per rollout, otherwise hundreds pile up). Only an empty directory is removed."""
+    shutil.rmtree(work, ignore_errors=True)
+    slug = re.sub(r"[^A-Za-z0-9]", "-", str(work))
+    memory_dir = Path.home() / ".claude" / "projects" / slug
+    try:
+        if memory_dir.is_dir() and not any(p.is_file() for p in memory_dir.rglob("*")):
+            shutil.rmtree(memory_dir, ignore_errors=True)
+    except OSError:
+        pass
+
+
 def run_task(
     *,
     prompt: str,
@@ -136,6 +151,7 @@ def run_task(
         trace.stop_reason = "timeout"
         trace.returncode = -1
     trace.duration_s = time.time() - started
+    _cleanup(work)
 
     for line in stdout.splitlines():
         line = line.strip().lstrip("﻿")
