@@ -217,7 +217,7 @@
   setup:
     - {method: create_schedule, params: {data: {categoryName: Doors, name: "Door List", fields: [{parameterName: Mark}, {parameterName: Level}, {parameterName: Comments}]}}}
   oracle:
-    - {method: edit_schedule_fields, params: {scheduleName: "Door List", fields: [{fieldName: Comments, isHidden: true}, {fieldName: Level, heading: Floor}]}}
+    - {method: edit_schedule, params: {scheduleName: "Door List", fields: [{fieldName: Comments, isHidden: true}, {fieldName: Level, heading: Floor}]}}
   checks:
     - {kind: schedule, name: "Door List", headings: [Mark, Floor]}
 
